@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>반응속도 테스트</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#08090b;
+    --panel:#101318;
+    --line:#1f242c;
+    --amber:#ffb020;
+    --amber-glow:rgba(255,176,32,0.14);
+    --green:#00e676;
+    --red:#ff3b3b;
+    --text:#eceae3;
+    --text-dim:#787d87;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    min-height:100vh;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Space Grotesk',sans-serif;
+    display:flex;
+    justify-content:center;
+    padding:28px 16px 60px;
+    transition:background 0.15s;
+  }
+  body.flash-go{background:#052015;}
+  body.flash-early{background:#210505;}
+
+  .wrap{width:100%;max-width:760px;}
+
+  .masthead{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    margin-bottom:20px;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .masthead h1{
+    font-size:1.5rem;
+    font-weight:700;
+    margin:0;
+    letter-spacing:-0.01em;
+  }
+  .masthead h1 .accent{color:var(--amber);}
+  .masthead .sub{
+    font-family:'JetBrains Mono',monospace;
+    font-size:0.68rem;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+  }
+
+  /* ---- tabs ---- */
+  .tabs{
+    display:flex;
+    gap:4px;
+    margin-bottom:20px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:4px;
+    background:var(--panel);
+  }
+  .tab-btn{
+    flex:1;
+    background:none;
+    border:none;
+    color:var(--text-dim);
+    font-family:'JetBrains Mono',monospace;
+    font-size:0.78rem;
+    letter-spacing:0.06em;
+    padding:10px 12px;
+    border-radius:6px;
+    cursor:pointer;
+    transition:background 0.12s, color 0.12s;
+  }
+  .tab-btn.active{
+    background:var(--bg);
+    color:var(--amber);
+  }
+  .tab-panel{ display:none; }
+  .tab-panel.active{ display:block; }
+
+  /* ---- signal panel ---- */
+  .signal-panel{
+    border-radius:10px;
+    border:1px solid var(--line);
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+  }
+  .name-bar{
+    padding:14px 16px;
+    background:var(--panel);
+    border-bottom:1px solid var(--line);
+    display:flex;
+    gap:10px;
+    align-items:center;
+  }
+  .name-bar input{
+    flex:1;
+    background:var(--bg);
+    border:1px solid var(--line);
+    color:var(--text);
+    font-family:'JetBrains Mono',monospace;
+    font-size:0.85rem;
+    padding:9px 11px;
+    border-radius:5px;
+    outline:none;
+  }
+  .name-bar input:focus{border-color:var(--amber);}
+  .name-bar input::placeholder{color:var(--text-dim);}
+
+  .round-dots{
+    display:flex;
+    gap:7px;
+    padding:14px 16px 0;
+    justify-content:center;
+    background:var(--panel);
+  }
+  .round-dots .dot{
+    width:9px;height:9px;
+    border-radius:50%;
+    background:var(--line);
+    transition:background 0.15s;
+  }
+  .round-dots .dot.done{ background:var(--green); }
+  .round-dots .dot.current{ background:var(--amber); }
+
+  .surface{
+    min-height:420px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    user-select:none;
+    background:var(--panel);
+    transition:background 0.08s linear;
+    position:relative;
+    text-align:center;
+    padding:30px;
+  }
+  .surface.state-idle{ background:var(--panel); }
+  .surface.state-armed{
+    background:
+      radial-gradient(circle at 50% 40%, var(--amber-glow), transparent 65%),
+      var(--panel);
+  }
+  .surface.state-go{ background:var(--green); }
+  .surface.state-early{
+    background:var(--red);
+    animation:shake 0.32s;
+  }
+  @keyframes shake{
+    0%,100%{transform:translateX(0);}
+    20%{transform:translateX(-8px);}
+    40%{transform:translateX(8px);}
+    60%{transform:translateX(-5px);}
+    80%{transform:translateX(5px);}
+  }
+
+  .round-view, .summary-view{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+  }
+  .summary-view{ display:none; width:100%; }
+  .surface.state-summary .round-view{ display:none; }
+  .surface.state-summary .summary-view{ display:flex; }
+
+  .tick{
+    font-family:'JetBrains Mono',monospace;
+    font-size:0.7rem;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+    margin-bottom:14px;
+  }
+  .state-armed .tick{ color:var(--amber); }
+  .state-go .tick{ color:rgba(4,20,12,0.65); }
+  .state-early .tick{ color:rgba(255,255,255,0.75); }
+
+  .readout{
+    font-family:'JetBrains Mono',monospace;
+    font-weight:800;
+    font-size:3.2rem;
+    line-height:1;
+    color:var(--text);
+    letter-spacing:-0.02em;
+  }
+  .state-armed .readout{ color:var(--amber); }
+  .state-go .readout{ color:#04140c; font-size:3.8rem; }
+  .state-early .readout{ color:#fff; }
+
+  .msg{
+    margin-top:12px;
+    font-size:0.86rem;
+    color:var(--text-dim);
+    max-width:280px;
+  }
+  .state-armed .msg{ color:rgba(255,176,32,0.7); }
+  .state-go .msg{ color:rgba(4,20,12,0.7); }
+  .state-early .msg{ color:rgba(255,255,255,0.85); }
+
+  .summary-view .tick{ margin-bottom:8px; }
+  .summary-view .avg-num{
+    font-family:'JetBrains Mono',monospace;
+    font-weight:800;
+    font-size:3rem;
+    color:var(--amber);
+    line-height:1;
+  }
+  .summary-view .avg-label{
+    font-size:0.78rem;
+    color:var(--text-dim);
+    margin-bottom:18px;
+  }
+  .round-list{
+    display:flex;
+    gap:8px;
+    margin-bottom:20px;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+  .round-list span{
+    font-family:'JetBrains Mono',monospace;
+    font-size:0.72rem;
+    color:var(--text-dim);
+    background:var(--bg);
+    border:1px solid var(--line);
+    padding:5px 9px;
+    border-radius:5px;
+  }
+  .summary-view .msg{ color:var(--text-dim); }
+
+  .result-bar{
+    padding:14px 16px;
+    background:var(--panel);
+    border-top:1px solid var(--line);
+    font-family:'JetBrains Mono',monospace;
+    font-size:0.8rem;
+    color:var(--text-dim);
+  }
+  .result-bar b{ color:var(--amber); font-size:1rem; }
+
+  /* ---- leaderboard ---- */
+  .board{
+    border-radius:10px;
+    border:1px solid var(--line);
+    background:var(--panel);
+    padding:20px;
+  }
+  .board-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:16px;
+  }
+  .board-head h2{
+    font-size:1.05rem;
+    font-weight:700;
+    margin:0;
+  }
+  .live-dot{
+    display:flex;align-items:center;gap:6px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:0.62rem;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+  }
+  .live-dot::before{
+    content:"";
+    width:6px;height:6px;border-radius:50%;
+    background:var(--green);
+    box-shadow:0 0 6px var(--green);
+    animation:blink 1.4s infinite;
+  }
+  @keyframes blink{0%,100%{opacity:1;}50%{opacity:0.25;}}
+
+  table{width:100%;border-collapse:collapse;}
+  thead th{
+    text-align:left;
+    font-family:'JetBrains Mono',monospace;
+    font-size:0.6rem;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+    padding:0 6px 8px;
+    border-bottom:1px solid var(--line);
+    font-weight:400;
+  }
+  tbody td{
+    padding:9px 6px;
+    font-size:0.86rem;
+    border-bottom:1px solid var(--line);
+  }
+  tbody tr.me{ background:rgba(255,176,32,0.08); }
+  td.rank{
+    font-family:'JetBrains Mono',monospace;
+    font-weight:700;
+    width:28px;
+    color:var(--text-dim);
+  }
+  td.rank.gold{ color:var(--amber); }
+  td.rank.silver{ color:#c7c9cf; }
+  td.rank.bronze{ color:#c98a55; }
+  td.time{
+    font-family:'JetBrains Mono',monospace;
+    color:var(--green);
+    text-align:right;
+    font-weight:700;
+  }
+  td.attempts{
+    font-family:'JetBrains Mono',monospace;
+    color:var(--text-dim);
+    text-align:right;
+    font-size:0.72rem;
+  }
+  .empty-row{
+    padding:26px 6px;
+    text-align:center;
+    color:var(--text-dim);
+    font-size:0.8rem;
+    font-family:'JetBrains Mono',monospace;
+  }
+  .admin-btn{
+    background:none;
+    border:1px solid var(--line);
+    color:var(--text-dim);
+    font-family:'JetBrains Mono',monospace;
+    font-size:0.6rem;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    padding:5px 9px;
+    border-radius:5px;
+    cursor:pointer;
+  }
+  .admin-btn:hover{ color:var(--text); border-color:var(--text-dim); }
+  .admin-btn.on{ color:var(--amber); border-color:var(--amber); }
+
+  .admin-col{ width:26px; }
+  table:not(.admin-mode) .admin-col{ display:none; }
+  .del-btn{
+    background:none;
+    border:none;
+    color:var(--text-dim);
+    cursor:pointer;
+    font-size:0.9rem;
+    line-height:1;
+    padding:2px 4px;
+  }
+  .del-btn:hover{ color:var(--red); }
+</style>
+</head>
+<body id="pageBody">
+<div class="wrap">
+  <div class="masthead">
+    <h1>반응속도<span class="accent">.</span> 테스트</h1>
+    <div class="sub">Signal Response · Class Leaderboard</div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" id="tabBtnTest">테스트</button>
+    <button class="tab-btn" id="tabBtnBoard">리더보드</button>
+  </div>
+
+  <div class="tab-panel active" id="panelTest">
+    <div class="signal-panel">
+      <div class="name-bar">
+        <input id="nameInput" type="text" placeholder="이름을 입력하세요" maxlength="12">
+      </div>
+      <div class="round-dots" id="roundDots">
+        <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      </div>
+
+      <div class="surface state-idle" id="surface">
+        <div class="round-view" id="roundView">
+          <div class="tick" id="tick">대기 중</div>
+          <div class="readout" id="readout">클릭해서 시작</div>
+          <div class="msg" id="msg">5번 측정해서 평균을 냅니다. 초록색이 되면 최대한 빨리 클릭하세요</div>
+        </div>
+        <div class="summary-view" id="summaryView">
+          <div class="tick">측정 완료</div>
+          <div class="avg-num" id="avgNum">0ms</div>
+          <div class="avg-label">5회 평균 기록</div>
+          <div class="round-list" id="roundList"></div>
+          <div class="msg">클릭하면 리더보드에 제출되고 새로 시작합니다</div>
+        </div>
+      </div>
+
+      <div class="result-bar" id="resultLine">기록이 여기에 표시됩니다</div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="panelBoard">
+    <div class="board">
+      <div class="board-head">
+        <h2>실시간 순위</h2>
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div class="live-dot">LIVE</div>
+          <button id="adminToggle" class="admin-btn">관리자 모드</button>
+        </div>
+      </div>
+      <table id="boardTable">
+        <thead>
+          <tr><th>#</th><th>이름</th><th style="text-align:right">평균기록</th><th style="text-align:right">세션</th><th class="admin-col"></th></tr>
+        </thead>
+        <tbody id="boardBody"></tbody>
+      </table>
+      <div id="emptyState" class="empty-row" style="display:none;">아직 기록이 없습니다</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const body = document.getElementById('pageBody');
+const surface = document.getElementById('surface');
+const tick = document.getElementById('tick');
+const readout = document.getElementById('readout');
+const msg = document.getElementById('msg');
+const resultLine = document.getElementById('resultLine');
+const nameInput = document.getElementById('nameInput');
+const boardBody = document.getElementById('boardBody');
+const emptyState = document.getElementById('emptyState');
+const boardTable = document.getElementById('boardTable');
+const adminToggle = document.getElementById('adminToggle');
+const roundDots = document.getElementById('roundDots').querySelectorAll('.dot');
+const avgNum = document.getElementById('avgNum');
+const roundList = document.getElementById('roundList');
+
+const tabBtnTest = document.getElementById('tabBtnTest');
+const tabBtnBoard = document.getElementById('tabBtnBoard');
+const panelTest = document.getElementById('panelTest');
+const panelBoard = document.getElementById('panelBoard');
+
+const ROUNDS = 5;
+const SCRIPT_URL = 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE'; // 배포한 Apps Script 웹 앱 URL로 교체
+let isAdmin = false;
+let adminPin = null;
+let state = 'idle';       // idle -> armed -> go/early -> ... -> summary
+let sessionActive = false;
+let currentRound = 0;     // 0-indexed count of completed rounds
+let armTimeout = null;
+let goTimestamp = null;
+let roundTimes = [];
+
+tabBtnTest.addEventListener('click', () => switchTab('test'));
+tabBtnBoard.addEventListener('click', () => switchTab('board'));
+
+function switchTab(name){
+  const isTest = name === 'test';
+  tabBtnTest.classList.toggle('active', isTest);
+  tabBtnBoard.classList.toggle('active', !isTest);
+  panelTest.classList.toggle('active', isTest);
+  panelBoard.classList.toggle('active', !isTest);
+  if(!isTest) loadBoard();
+}
+
+function updateDots(){
+  roundDots.forEach((d, i) => {
+    d.classList.remove('done','current');
+    if(i < currentRound) d.classList.add('done');
+    else if(i === currentRound && sessionActive) d.classList.add('current');
+  });
+}
+
+function setSurfaceState(newState){
+  state = newState;
+  surface.classList.remove('state-idle','state-armed','state-go','state-early','state-summary');
+  surface.classList.add('state-' + newState);
+  body.classList.remove('flash-go','flash-early');
+  if(newState === 'go') body.classList.add('flash-go');
+  if(newState === 'early') body.classList.add('flash-early');
+}
+
+function getName(){
+  const n = nameInput.value.trim();
+  return n.length ? n.slice(0,12) : null;
+}
+
+function arm(){
+  setSurfaceState('armed');
+  tick.textContent = '준비';
+  readout.textContent = '대기...';
+  msg.textContent = `라운드 ${currentRound + 1} / ${ROUNDS} · 초록색이 될 때까지 기다리세요`;
+  updateDots();
+  const delay = 1200 + Math.random()*2800;
+  armTimeout = setTimeout(() => {
+    goTimestamp = performance.now();
+    setSurfaceState('go');
+    tick.textContent = 'GO';
+    readout.textContent = '클릭!';
+    msg.textContent = '';
+  }, delay);
+}
+
+surface.addEventListener('click', () => {
+  if(state === 'summary'){
+    startSession();
+    return;
+  }
+
+  if(!sessionActive){
+    const name = getName();
+    if(!name){
+      resultLine.textContent = '이름을 먼저 입력하세요';
+      nameInput.focus();
+      return;
+    }
+    startSession();
+    return;
+  }
+
+  if(state === 'idle'){
+    arm();
+    return;
+  }
+
+  if(state === 'armed'){
+    clearTimeout(armTimeout);
+    setSurfaceState('early');
+    tick.textContent = 'FALSE START';
+    readout.textContent = '너무 빠름';
+    msg.textContent = '초록색이 될 때까지 기다렸어야 합니다 · 클릭해서 이 라운드 다시 시도';
+    resultLine.textContent = '성급했습니다 — 같은 라운드를 다시 시도하세요';
+    return;
+  }
+
+  if(state === 'early'){
+    arm();
+    return;
+  }
+
+  if(state === 'go'){
+    const rt = Math.round(performance.now() - goTimestamp);
+    roundTimes.push(rt);
+    currentRound++;
+    resultLine.innerHTML = `라운드 ${currentRound}: <b>${rt}ms</b>`;
+
+    if(currentRound >= ROUNDS){
+      finishSession();
+    } else {
+      setSurfaceState('idle');
+      tick.textContent = '라운드 완료';
+      readout.textContent = `${rt}ms`;
+      msg.textContent = '클릭해서 다음 라운드 시작';
+      updateDots();
+    }
+  }
+});
+
+function startSession(){
+  sessionActive = true;
+  currentRound = 0;
+  roundTimes = [];
+  resultLine.textContent = '세션 시작';
+  arm();
+}
+
+function finishSession(){
+  sessionActive = false;
+  updateDots();
+  const avg = Math.round(roundTimes.reduce((a,b) => a+b, 0) / roundTimes.length);
+  avgNum.textContent = avg + 'ms';
+  roundList.innerHTML = roundTimes.map((t,i) => `<span>R${i+1}: ${t}ms</span>`).join('');
+  setSurfaceState('summary');
+  resultLine.innerHTML = `이번 세션 평균: <b>${avg}ms</b> · 리더보드에 제출됨`;
+  recordResult(getName(), avg);
+}
+
+// ---------- storage / leaderboard ----------
+
+async function recordResult(name, avg){
+  try{
+    await fetch(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'submit', name, avg })
+    });
+    await loadBoard();
+  }catch(e){
+    console.error('저장 실패', e);
+  }
+}
+
+async function loadBoard(){
+  try{
+    const res = await fetch(SCRIPT_URL);
+    const data = await res.json();
+    const entries = data.entries || [];
+    entries.sort((a,b) => a.best - b.best);
+    emptyState.style.display = entries.length ? 'none' : 'block';
+
+    const myName = getName();
+    boardBody.innerHTML = entries.slice(0,15).map((e,i) => {
+      const rankClass = i===0 ? 'gold' : i===1 ? 'silver' : i===2 ? 'bronze' : '';
+      const meClass = (myName && e.name === myName) ? 'me' : '';
+      return `<tr class="${meClass}">
+        <td class="rank ${rankClass}">${i+1}</td>
+        <td>${escapeHtml(e.name)}</td>
+        <td class="time">${e.best}ms</td>
+        <td class="attempts">${e.attempts}회</td>
+        <td class="admin-col"><button class="del-btn" data-name="${escapeHtml(e.name)}" title="삭제">✕</button></td>
+      </tr>`;
+    }).join('');
+  }catch(e){
+    console.error('불러오기 실패', e);
+  }
+}
+
+function escapeHtml(s){
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+adminToggle.addEventListener('click', () => {
+  if(isAdmin){
+    isAdmin = false;
+    adminPin = null;
+    adminToggle.textContent = '관리자 모드';
+    adminToggle.classList.remove('on');
+    boardTable.classList.remove('admin-mode');
+    return;
+  }
+  const pin = prompt('관리자 PIN을 입력하세요');
+  if(pin === null || pin === '') return;
+  adminPin = pin;
+  isAdmin = true;
+  adminToggle.textContent = '관리자 모드 ON';
+  adminToggle.classList.add('on');
+  boardTable.classList.add('admin-mode');
+});
+
+boardBody.addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('.del-btn');
+  if(!btn || !isAdmin) return;
+  const name = btn.dataset.name;
+  if(!confirm(`"${name}" 기록을 삭제할까요?`)) return;
+  try{
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'delete', name, pin: adminPin })
+    });
+    const data = await res.json();
+    if(data.error === 'invalid_pin'){
+      alert('PIN이 올바르지 않습니다');
+      isAdmin = false;
+      adminPin = null;
+      adminToggle.textContent = '관리자 모드';
+      adminToggle.classList.remove('on');
+      boardTable.classList.remove('admin-mode');
+      return;
+    }
+    await loadBoard();
+  }catch(e){
+    alert('삭제 실패');
+  }
+});
+
+loadBoard();
+setInterval(() => { if(!panelBoard.classList.contains('active')) return; loadBoard(); }, 2500);
+</script>
+</body>
+</html>
